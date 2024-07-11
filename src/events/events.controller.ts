@@ -4,42 +4,47 @@ import {
   Delete,
   Get,
   HttpCode,
+  Logger,
   Param,
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   ValidationPipe,
 } from '@nestjs/common';
 import { Event } from './event.entity';
-import { CreateEventDto } from './create-event.dto';
-import { UpdateEventDto } from './update-event.dto';
+import { CreateEventDto } from './input/create-event.dto';
+import { UpdateEventDto } from './input/update-event.dto';
 import { MoreThan, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
+import { NotFoundError } from 'rxjs';
+import { Attendee } from './attendee.entity';
+import { EventsService } from './events.service';
+import { ListEvents } from './input/list.events';
 
 @Controller('/events')
 export class EventsController {
+  private readonly logger = new Logger(EventsController.name);
+
   constructor(
     @InjectRepository(Event)
     private readonly repository: Repository<Event>,
+    @InjectRepository(Attendee)
+    private readonly attendeeRepository: Repository<Attendee>,
+    private readonly eventsService: EventsService,
   ) {}
 
   @Get()
-  async findAll() {
-    return await this.repository.find();
+  async findAll(@Query() filter: ListEvents) {
+    return await this.eventsService.getEventsWithAttendeeCountFiltered(filter);
   }
-  @Get('/practice')
-  async practice() {
-    return await this.repository.find({
-      where: {
-        id: MoreThan(3),
-        when: MoreThan(new Date('2021-02-12T13:00:00')),
-      },
-    });
-  }
-
   @Get(':id')
   async findOne(@Param('id', ParseIntPipe) id: number) {
-    return await this.repository.findOne({ where: { id } });
+    const result = await this.eventsService.getEvent(id);
+    if (!result) {
+      throw new NotFoundError(`Event with id ${id} not found`);
+    }
+    return result;
   }
 
   @Post()

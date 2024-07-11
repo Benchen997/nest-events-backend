@@ -1,4 +1,3 @@
-import { Event } from './events/event.entity';
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -6,20 +5,21 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { EventsModule } from './events/events.module';
 import { AppFrancaisService } from './events/app.francais.service';
 import { AppDummy } from './app.dummy';
-
+import { ConfigModule } from '@nestjs/config';
+import * as process from 'node:process';
+import ormConfig from './config/orm.config';
+import ormConfigProd from './config/orm.config.prod';
 @Module({
   imports: [
-    TypeOrmModule.forRoot({
-      type: 'mysql',
-      host: '127.0.0.1',
-      port: 3306,
-      username: 'root',
-      password: 'example',
-      database: 'nest-events',
-      entities: [Event],
-      // this feature is not recommended for production
-      // because it is automatically updating the schema
-      synchronize: true,
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: '.env',
+      load: [ormConfig, ormConfigProd],
+      expandVariables: true,
+    }),
+    TypeOrmModule.forRootAsync({
+      useFactory:
+        process.env.NODE_ENV === 'production' ? ormConfig : ormConfigProd,
     }),
     EventsModule,
   ],
@@ -27,7 +27,7 @@ import { AppDummy } from './app.dummy';
   providers: [
     {
       provide: AppService,
-      useClass: AppFrancaisService,
+      useClass: AppService,
     },
     {
       provide: 'APP_NAME',
