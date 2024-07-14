@@ -5,11 +5,13 @@ import {
   Get,
   HttpCode,
   Logger,
+  NotFoundException,
   Param,
   ParseIntPipe,
   Patch,
   Post,
   Query,
+  UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
 import { Event } from './event.entity';
@@ -35,8 +37,16 @@ export class EventsController {
   ) {}
 
   @Get()
+  @UsePipes(new ValidationPipe({ transform: true }))
   async findAll(@Query() filter: ListEvents) {
-    return await this.eventsService.getEventsWithAttendeeCountFiltered(filter);
+    return await this.eventsService.getEventsWithAttendeeCountFilteredPaginated(
+      filter,
+      {
+        total: true,
+        currentPage: filter.page,
+        limit: 2,
+      },
+    );
   }
   @Get(':id')
   async findOne(@Param('id', ParseIntPipe) id: number) {
@@ -73,7 +83,9 @@ export class EventsController {
   @Delete(':id')
   @HttpCode(204)
   async remove(@Param('id', ParseIntPipe) id: number) {
-    const event = await this.repository.findOne({ where: { id } });
-    await this.repository.remove(event);
+    const result = await this.eventsService.deleteEvent(id);
+    if (result?.affected !== 1) {
+      throw new NotFoundException(`Event with id ${id} not found`);
+    }
   }
 }

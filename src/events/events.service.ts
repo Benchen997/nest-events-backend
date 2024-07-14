@@ -1,9 +1,10 @@
-import { Repository } from 'typeorm';
+import { DeleteResult, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Event } from './event.entity';
 import { Injectable, Logger } from '@nestjs/common';
 import { AttendeeAnswerEnum } from './attendee.entity';
 import { ListEvents, WhenEventFilter } from './input/list.events';
+import { paginate, PaginateOptions } from '../pagination/paginator';
 
 @Injectable()
 export class EventsService {
@@ -64,11 +65,20 @@ export class EventsService {
       .andWhere('e.id = :id', { id })
       .getOne();
   }
-  public async getEventsWithAttendeeCountFiltered(filter?: ListEvents) {
+  public async getEventsWithAttendeeCountFilteredPaginated(
+    filter: ListEvents,
+    paginateOptions: PaginateOptions,
+  ) {
+    return await paginate(
+      await this.getEventsWithAttendeeCountFiltered(filter),
+      paginateOptions,
+    );
+  }
+  private async getEventsWithAttendeeCountFiltered(filter?: ListEvents) {
     let query = this.getEventsWithAttendeeCountQuery();
 
     if (!filter) {
-      return query.getMany();
+      return query;
     }
 
     if (filter.when) {
@@ -95,6 +105,13 @@ export class EventsService {
       }
     }
 
-    return await query.getMany();
+    return query;
+  }
+  public async deleteEvent(id: number): Promise<DeleteResult> {
+    return await this.eventsRepository
+      .createQueryBuilder('e')
+      .delete()
+      .where('id = :id', { id })
+      .execute();
   }
 }
