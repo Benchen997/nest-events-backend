@@ -17,7 +17,7 @@ import {
 import { Event } from './event.entity';
 import { CreateEventDto } from './input/create-event.dto';
 import { UpdateEventDto } from './input/update-event.dto';
-import { MoreThan, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { NotFoundError } from 'rxjs';
 import { Attendee } from './attendee.entity';

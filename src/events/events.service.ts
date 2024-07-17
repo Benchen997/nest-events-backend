@@ -14,6 +14,12 @@ export class EventsService {
     private readonly eventsRepository: Repository<Event>,
   ) {}
   private getEventsBaseQuery() {
+    /*
+     * SELECT e.*
+     * FROM events e
+     * ORDER BY e.id DESC;
+     *
+     * */
     return this.eventsRepository
       .createQueryBuilder('e')
       .orderBy('e.id', 'DESC');

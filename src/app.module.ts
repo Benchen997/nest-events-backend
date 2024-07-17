@@ -9,6 +9,7 @@ import { ConfigModule } from '@nestjs/config';
 import * as process from 'node:process';
 import ormConfig from './config/orm.config';
 import ormConfigProd from './config/orm.config.prod';
+import { AuthModule } from './auth/auth.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -21,6 +22,7 @@ import ormConfigProd from './config/orm.config.prod';
       useFactory:
         process.env.NODE_ENV === 'production' ? ormConfig : ormConfigProd,
     }),
+    AuthModule,
     EventsModule,
   ],
   controllers: [AppController],
