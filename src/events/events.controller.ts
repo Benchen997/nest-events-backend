@@ -1,5 +1,6 @@
 import {
   Body,
+  ClassSerializerInterceptor,
   Controller,
   Delete,
   Get,
@@ -11,30 +12,26 @@ import {
   Patch,
   Post,
   Query,
+  SerializeOptions,
+  UseGuards,
+  UseInterceptors,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { Event } from './event.entity';
 import { CreateEventDto } from './input/create-event.dto';
 import { UpdateEventDto } from './input/update-event.dto';
-import { Repository } from 'typeorm';
-import { InjectRepository } from '@nestjs/typeorm';
-import { NotFoundError } from 'rxjs';
-import { Attendee } from './attendee.entity';
 import { EventsService } from './events.service';
 import { ListEvents } from './input/list.events';
+import { CurrentUser } from '../auth/current-user.decorator';
+import { User } from '../auth/user.entity';
+import { AuthGuardJwt } from '../auth/auth-guard.jwt';
 
 @Controller('/events')
+@SerializeOptions({ strategy: 'excludeAll' })
 export class EventsController {
   private readonly logger = new Logger(EventsController.name);
 
-  constructor(
-    @InjectRepository(Event)
-    private readonly repository: Repository<Event>,
-    @InjectRepository(Attendee)
-    private readonly attendeeRepository: Repository<Attendee>,
-    private readonly eventsService: EventsService,
-  ) {}
+  constructor(private readonly eventsService: EventsService) {}
 
   @Get()
   @UsePipes(new ValidationPipe({ transform: true }))
@@ -49,43 +46,41 @@ export class EventsController {
     );
   }
   @Get(':id')
+  @UseInterceptors(ClassSerializerInterceptor)
   async findOne(@Param('id', ParseIntPipe) id: number) {
     const result = await this.eventsService.getEvent(id);
     if (!result) {
-      throw new NotFoundError(`Event with id ${id} not found`);
+      throw new NotFoundException(`Event with id ${id} not found`);
     }
     return result;
   }
 
   @Post()
+  @UseGuards(AuthGuardJwt)
   async create(
     @Body(new ValidationPipe({ groups: ['create'] })) input: CreateEventDto,
+    @CurrentUser() user: User,
   ) {
-    return await this.repository.save({
-      ...input,
-      when: new Date(input.when),
-    });
+    return await this.eventsService.createEvent(input, user);
   }
 
   @Patch(':id')
+  @UseGuards(AuthGuardJwt)
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body(new ValidationPipe({ groups: ['update'] })) input: UpdateEventDto,
+    @CurrentUser() user: User,
   ) {
-    const event = await this.repository.findOne({ where: { id } });
-    return await this.repository.save({
-      ...event,
-      ...input,
-      when: input.when ? new Date(input.when) : event.when,
-    });
+    return await this.eventsService.updateEvent(id, input, user);
   }
 
   @Delete(':id')
   @HttpCode(204)
-  async remove(@Param('id', ParseIntPipe) id: number) {
-    const result = await this.eventsService.deleteEvent(id);
-    if (result?.affected !== 1) {
-      throw new NotFoundException(`Event with id ${id} not found`);
-    }
+  @UseGuards(AuthGuardJwt)
+  async remove(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: User,
+  ) {
+    return await this.eventsService.removeEvent(id, user);
   }
 }

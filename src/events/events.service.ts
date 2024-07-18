@@ -1,10 +1,18 @@
-import { DeleteResult, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Event } from './event.entity';
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { AttendeeAnswerEnum } from './attendee.entity';
 import { ListEvents, WhenEventFilter } from './input/list.events';
 import { paginate, PaginateOptions } from '../pagination/paginator';
+import { CreateEventDto } from './input/create-event.dto';
+import { User } from '../auth/user.entity';
+import { UpdateEventDto } from './input/update-event.dto';
 
 @Injectable()
 export class EventsService {
@@ -23,6 +31,42 @@ export class EventsService {
     return this.eventsRepository
       .createQueryBuilder('e')
       .orderBy('e.id', 'DESC');
+  }
+
+  public async createEvent(input: CreateEventDto, user: User): Promise<Event> {
+    return await this.eventsRepository.save({
+      ...input,
+      organizer: user,
+      when: new Date(input.when),
+    });
+  }
+  public async updateEvent(
+    id: number,
+    input: UpdateEventDto,
+    user: User,
+  ): Promise<Event> {
+    const event = await this.eventsRepository.findOne({ where: { id } });
+    if (!event) {
+      throw new NotFoundException(`Event with id ${id} not found`);
+    }
+    if (event.organizerId !== user.id) {
+      throw new ForbiddenException(null, `You can't update this event`);
+    }
+    return await this.eventsRepository.save({
+      ...event,
+      ...input,
+      when: input.when ? new Date(input.when) : event.when,
+    });
+  }
+  public async removeEvent(id: number, user: User): Promise<Event> {
+    const event = await this.eventsRepository.findOne({ where: { id } });
+    if (!event) {
+      throw new NotFoundException(`Event with id ${id} not found`);
+    }
+    if (event.organizerId !== user.id) {
+      throw new ForbiddenException(null, `You can't remove this event`);
+    }
+    return await this.eventsRepository.remove(event);
   }
   public getEventsWithAttendeeCountQuery() {
     /*
@@ -67,9 +111,13 @@ export class EventsService {
       );
   }
   public async getEvent(id: number): Promise<Event | undefined> {
-    return await this.getEventsWithAttendeeCountQuery()
+    const event = await this.getEventsWithAttendeeCountQuery()
       .andWhere('e.id = :id', { id })
       .getOne();
+    if (!event) {
+      throw new NotFoundException(`Event with id ${id} not found`);
+    }
+    return event;
   }
   public async getEventsWithAttendeeCountFilteredPaginated(
     filter: ListEvents,
@@ -112,12 +160,5 @@ export class EventsService {
     }
 
     return query;
-  }
-  public async deleteEvent(id: number): Promise<DeleteResult> {
-    return await this.eventsRepository
-      .createQueryBuilder('e')
-      .delete()
-      .where('id = :id', { id })
-      .execute();
   }
 }
